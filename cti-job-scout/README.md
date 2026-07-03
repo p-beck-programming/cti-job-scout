@@ -27,7 +27,6 @@ python3 -m venv .venv && source .venv/bin/activate
 pip install -r requirements.txt        # installs litellm, pydantic, google libs, etc.
 
 cp .env.example .env        # fill in your secrets (see sections below)
-export $(grep -v '^#' .env | grep -v '^$' | xargs)
 
 # First run: everything except sending email
 DRY_RUN=1 PYTHONPATH=src python -m jobscout.main
@@ -39,7 +38,7 @@ PYTHONPATH=src python -m jobscout.main
 python -m pytest
 ```
 
-Before your first run, pick a scoring model and set the matching provider key in `.env` — see [**LLM provider setup (LiteLLM)**](#llm-provider-setup-litellm) below. The defaults use Anthropic's Claude, but any LiteLLM-supported provider works with no code changes.
+`.env` is loaded automatically when the pipeline runs (via `python-dotenv`), so there's **no manual `export` step** on any platform — just fill it in. Real environment variables already set in your shell take precedence over `.env`. Before your first run, pick a scoring model and set the matching provider key in `.env` — see [**LLM provider setup (LiteLLM)**](#llm-provider-setup-litellm) below. The defaults use Anthropic's Claude, but any LiteLLM-supported provider works with no code changes.
 
 To view the dashboard locally after a run:
 

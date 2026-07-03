@@ -32,8 +32,10 @@ from .prompts import SCORING_SYSTEM_PROMPT
 
 log = logging.getLogger(__name__)
 
-# Any LiteLLM model string works here: "<provider>/<model>". See README.
-DEFAULT_MODEL = os.environ.get("JOBSCOUT_MODEL", "anthropic/claude-sonnet-4-6")
+# Fallback when JOBSCOUT_MODEL is unset. Any LiteLLM model string works:
+# "<provider>/<model>". See README. The env var is read at call time (not
+# import time) so it picks up .env loaded by main.run().
+DEFAULT_MODEL = "anthropic/claude-sonnet-4-6"
 MAX_ATTEMPTS = 3
 RETRY_BASE_DELAY = 2.0  # seconds; doubles per attempt for 429/5xx backoff
 
@@ -73,10 +75,15 @@ def _build_user_message(posting: JobPosting) -> str:
 
 
 def score_posting(
-    posting: JobPosting, model: str = DEFAULT_MODEL, completion_fn=None
+    posting: JobPosting, model: str | None = None, completion_fn=None
 ) -> Score:
     """Score one posting, retrying on malformed output and transient API errors."""
     import litellm  # lazy: keeps parser tests dependency-free
+
+    # Resolve the model here (not as a default arg) so JOBSCOUT_MODEL from a
+    # .env loaded at runtime is honored, not frozen at import time.
+    if model is None:
+        model = os.environ.get("JOBSCOUT_MODEL", DEFAULT_MODEL)
 
     if completion_fn is None:
         completion_fn = litellm.completion  # provider keys read from env

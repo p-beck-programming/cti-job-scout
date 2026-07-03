@@ -2,6 +2,7 @@ requests>=2.32
 pydantic>=2.7
 PyYAML>=6.0
 litellm>=1.60
+python-dotenv>=1.0
 google-api-python-client>=2.140
 google-auth-oauthlib>=1.2
 google-auth>=2.30

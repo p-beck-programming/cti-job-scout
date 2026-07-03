@@ -9,6 +9,8 @@ from __future__ import annotations
 import logging
 import sys
 
+from dotenv import load_dotenv
+
 from .config import Settings, load_companies
 from .dashboard import write_dashboard_data
 from .digest import build_digest
@@ -21,6 +23,10 @@ log = logging.getLogger("jobscout")
 
 
 def run() -> int:
+    # Load .env into the environment (no-op if absent, e.g. in CI). Real
+    # environment variables and CI secrets already set are NOT overridden.
+    load_dotenv()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s: %(message)s",
