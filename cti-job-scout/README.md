@@ -6,7 +6,7 @@ A personal job-scouting agent for a SOC analyst moving into **Cyber Threat Intel
 
 1. **Fetch** — `config/companies.yaml` lists tracked companies; `fetchers.py` pulls their open postings from the public Greenhouse/Lever APIs (no auth needed). One broken company logs an error and is skipped; the run continues.
 2. **Dedup** — `state/state.json` remembers every posting ID ever scored, so a posting is only scored and emailed once. The Actions workflow commits this file back to the repo after each run. (Chosen over an Actions cache/artifact deliberately: caches get evicted and artifacts expire, and either failure would re-email your entire backlog. A committed JSON file is durable and `git log state/state.json` doubles as an audit trail.)
-3. **Score** — `scoring.py` sends each new posting's title, locations, and description to your configured LLM (via LiteLLM) with the rubric in `prompts.py`. The model returns strict JSON (`score` 0–100, one-line `rationale`, `matched_keywords`), validated with pydantic; malformed output triggers a corrective retry, and a posting that can't be scored is retried automatically on the next run.
+3. **Score** — `scoring.py` sends each new posting's title, locations, and description to your configured LLM with the rubric in `prompts.py`. All model calls go through **[LiteLLM](https://docs.litellm.ai/)**, a thin adapter that exposes a single `completion()` interface over 100+ providers, so switching between Anthropic, OpenAI, Gemini, a local Ollama model, etc. is a one-line env-var change (`JOBSCOUT_MODEL`) with no code edits. The model returns strict JSON (`score` 0–100, one-line `rationale`, `matched_keywords`), validated with pydantic; malformed output triggers a corrective retry, and a posting that can't be scored is retried automatically on the next run.
 4. **Digest** — `digest.py` builds an HTML email of new matches at or above the threshold (default 60), sorted by score, split into *Remote-eligible* and *On-site/Hybrid* sections, with company, title, score, rationale, location, and an apply link on every entry.
 5. **Dashboard** — `dashboard.py` writes `docs/jobs.json` from the accumulated match history; `docs/index.html` is a static page that filters it live by **city/metro, state, remote-only, minimum score, and free-text search**. Email clients strip JavaScript, so interactive filtering can't live in the email itself — the digest links to this dashboard instead.
 6. **Send** — `mailer.py` sends via the Gmail API with OAuth2 (scope: `gmail.send` only — the token can send as you but never read your mail). No SMTP passwords anywhere.
@@ -24,7 +24,7 @@ config/companies.yaml ──► fetchers ──► dedup (state.json) ──► 
 ```bash
 git clone <your-repo-url> cti-job-scout && cd cti-job-scout
 python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+pip install -r requirements.txt        # installs litellm, pydantic, google libs, etc.
 
 cp .env.example .env        # fill in your secrets (see sections below)
 export $(grep -v '^#' .env | grep -v '^$' | xargs)
@@ -38,6 +38,8 @@ PYTHONPATH=src python -m jobscout.main
 # Tests
 python -m pytest
 ```
+
+Before your first run, pick a scoring model and set the matching provider key in `.env` — see [**LLM provider setup (LiteLLM)**](#llm-provider-setup-litellm) below. The defaults use Anthropic's Claude, but any LiteLLM-supported provider works with no code changes.
 
 To view the dashboard locally after a run:
 
@@ -71,22 +73,24 @@ If it looks like `jobs.lever.co/<token>`, use `ats: lever`. Delete a company by 
 
 ## LLM provider setup (LiteLLM)
 
-Scoring goes through [LiteLLM](https://docs.litellm.ai/), so any of its 100+ supported providers works. Two knobs:
+All scoring runs through **[LiteLLM](https://docs.litellm.ai/)**. LiteLLM normalizes 100+ LLM providers behind one OpenAI-style `completion()` call, so **the app is not tied to any single vendor** — you choose the model with an environment variable and never touch the code. Switching from Claude to GPT-4o (or to a free local model) is just a `JOBSCOUT_MODEL` change plus the right API key. There are exactly two things to set:
 
-1. **`JOBSCOUT_MODEL`** — a LiteLLM model string in `<provider>/<model>` form. Default: `anthropic/claude-sonnet-4-6`. Examples:
+1. **`JOBSCOUT_MODEL`** — the model, as a LiteLLM string in `<provider>/<model>` form. Default: `anthropic/claude-sonnet-4-6`. Common choices:
 
    | Provider | `JOBSCOUT_MODEL` example | API key env var |
    |---|---|---|
    | Anthropic | `anthropic/claude-sonnet-4-6` | `ANTHROPIC_API_KEY` |
    | OpenAI | `openai/gpt-4o` | `OPENAI_API_KEY` |
    | Google Gemini | `gemini/gemini-2.0-flash` | `GEMINI_API_KEY` |
-   | Ollama (local, free) | `ollama/llama3` | none |
+   | Ollama (local, free) | `ollama/llama3` | none — see note below |
 
-   The full provider list and each provider's key variable: <https://docs.litellm.ai/docs/providers>.
+   Every supported provider and its exact model strings and key variable: <https://docs.litellm.ai/docs/providers>. The `<provider>/` prefix is required — a bare model name like `gpt-4o` will fail with a "provider not provided" error.
 
-2. **The provider's API key** — set only the one matching your chosen model.
-   - Locally: set both in `.env` (see `.env.example`).
-   - GitHub: add the key as a repo **secret** (e.g. `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) and, if you're not using the default model, set `JOBSCOUT_MODEL` as a repository **variable**. The workflow already passes through `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `GEMINI_API_KEY`; for another provider, add its env var to the `Run pipeline` step in `.github/workflows/job-scout.yml`.
+2. **The matching API key** — set only the key for the provider you actually use; the others can stay unset.
+   - **Locally:** put both `JOBSCOUT_MODEL` and the key in `.env` (see `.env.example`).
+   - **GitHub Actions:** add the key as a repo **secret** (e.g. `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) and, if you're not using the default model, set `JOBSCOUT_MODEL` as a repository **variable**. The workflow already forwards `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `GEMINI_API_KEY`; to use any other provider, add its key env var to the `Run pipeline` step's `env:` block in `.github/workflows/job-scout.yml`.
+
+**Ollama (local, no API key, no cost):** run [Ollama](https://ollama.com) on the same machine, `ollama pull llama3`, then set `JOBSCOUT_MODEL=ollama/llama3`. LiteLLM talks to `http://localhost:11434` by default; point elsewhere with `OLLAMA_API_BASE`. Note this only works where the model server is reachable — great for local runs, not for the GitHub Actions runner (which has no Ollama server).
 
 Cost note: only *new* postings are scored, descriptions are truncated to ~12k characters, and responses are capped at 400 tokens — after the first backfill run, daily cost is typically pennies (or zero with a local model).
 
