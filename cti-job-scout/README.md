@@ -1,19 +1,19 @@
 # CTI Job Scout
 
-A personal job-scouting agent for a SOC analyst moving into **Cyber Threat Intelligence, Detection Engineering, and Threat Hunting**. Once a day it pulls every open posting from a curated list of companies' public Greenhouse and Lever job boards, asks Claude to score each *new* posting against your role profile, emails you a digest of everything above your threshold via the Gmail API, and refreshes a filterable web dashboard.
+A personal job-scouting agent for a SOC analyst moving into **Cyber Threat Intelligence, Detection Engineering, and Threat Hunting**. Once a day it pulls every open posting from a curated list of companies' public Greenhouse and Lever job boards, asks an LLM of your choice (any [LiteLLM](https://docs.litellm.ai/)-supported provider — Anthropic, OpenAI, Google, local Ollama, and 100+ more) to score each *new* posting against your role profile, emails you a digest of everything above your threshold via the Gmail API, and refreshes a filterable web dashboard.
 
 ## Architecture in plain language
 
 1. **Fetch** — `config/companies.yaml` lists tracked companies; `fetchers.py` pulls their open postings from the public Greenhouse/Lever APIs (no auth needed). One broken company logs an error and is skipped; the run continues.
 2. **Dedup** — `state/state.json` remembers every posting ID ever scored, so a posting is only scored and emailed once. The Actions workflow commits this file back to the repo after each run. (Chosen over an Actions cache/artifact deliberately: caches get evicted and artifacts expire, and either failure would re-email your entire backlog. A committed JSON file is durable and `git log state/state.json` doubles as an audit trail.)
-3. **Score** — `scoring.py` sends each new posting's title, locations, and description to Claude with the rubric in `prompts.py`. Claude returns strict JSON (`score` 0–100, one-line `rationale`, `matched_keywords`), validated with pydantic; malformed output triggers a corrective retry, and a posting that can't be scored is retried automatically on the next run.
+3. **Score** — `scoring.py` sends each new posting's title, locations, and description to your configured LLM (via LiteLLM) with the rubric in `prompts.py`. The model returns strict JSON (`score` 0–100, one-line `rationale`, `matched_keywords`), validated with pydantic; malformed output triggers a corrective retry, and a posting that can't be scored is retried automatically on the next run.
 4. **Digest** — `digest.py` builds an HTML email of new matches at or above the threshold (default 60), sorted by score, split into *Remote-eligible* and *On-site/Hybrid* sections, with company, title, score, rationale, location, and an apply link on every entry.
 5. **Dashboard** — `dashboard.py` writes `docs/jobs.json` from the accumulated match history; `docs/index.html` is a static page that filters it live by **city/metro, state, remote-only, minimum score, and free-text search**. Email clients strip JavaScript, so interactive filtering can't live in the email itself — the digest links to this dashboard instead.
 6. **Send** — `mailer.py` sends via the Gmail API with OAuth2 (scope: `gmail.send` only — the token can send as you but never read your mail). No SMTP passwords anywhere.
 7. **Orchestrate** — `src/jobscout/main.py` runs the whole pipeline; `.github/workflows/job-scout.yml` schedules it daily and commits the updated state.
 
 ```
-config/companies.yaml ──► fetchers ──► dedup (state.json) ──► Claude scoring
+config/companies.yaml ──► fetchers ──► dedup (state.json) ──► LLM scoring (LiteLLM)
                                                              │
                         Gmail digest ◄── digest builder ◄────┤ (score ≥ threshold)
                         docs/index.html ◄── docs/jobs.json ◄─┘
@@ -69,14 +69,26 @@ Open the company's careers page. If the URL looks like `boards.greenhouse.io/<to
 
 If it looks like `jobs.lever.co/<token>`, use `ats: lever`. Delete a company by removing its block. Re-run the validator after any edit. (Removing a company doesn't purge its already-seen IDs from state — harmless, they just stop matching anything.)
 
-## Anthropic API key setup
+## LLM provider setup (LiteLLM)
 
-1. Create an account at <https://console.anthropic.com> and generate a key under **API Keys**.
-2. Locally: set `ANTHROPIC_API_KEY` in `.env`.
-3. GitHub: add a repo secret named exactly **`ANTHROPIC_API_KEY`**.
-4. The scoring model is `claude-sonnet-4-6` by default; override with the `JOBSCOUT_MODEL` env var when newer models ship (current model strings: <https://docs.claude.com>).
+Scoring goes through [LiteLLM](https://docs.litellm.ai/), so any of its 100+ supported providers works. Two knobs:
 
-Cost note: only *new* postings are scored, descriptions are truncated to ~12k characters, and responses are capped at 400 tokens — after the first backfill run, daily cost is typically pennies.
+1. **`JOBSCOUT_MODEL`** — a LiteLLM model string in `<provider>/<model>` form. Default: `anthropic/claude-sonnet-4-6`. Examples:
+
+   | Provider | `JOBSCOUT_MODEL` example | API key env var |
+   |---|---|---|
+   | Anthropic | `anthropic/claude-sonnet-4-6` | `ANTHROPIC_API_KEY` |
+   | OpenAI | `openai/gpt-4o` | `OPENAI_API_KEY` |
+   | Google Gemini | `gemini/gemini-2.0-flash` | `GEMINI_API_KEY` |
+   | Ollama (local, free) | `ollama/llama3` | none |
+
+   The full provider list and each provider's key variable: <https://docs.litellm.ai/docs/providers>.
+
+2. **The provider's API key** — set only the one matching your chosen model.
+   - Locally: set both in `.env` (see `.env.example`).
+   - GitHub: add the key as a repo **secret** (e.g. `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`) and, if you're not using the default model, set `JOBSCOUT_MODEL` as a repository **variable**. The workflow already passes through `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and `GEMINI_API_KEY`; for another provider, add its env var to the `Run pipeline` step in `.github/workflows/job-scout.yml`.
+
+Cost note: only *new* postings are scored, descriptions are truncated to ~12k characters, and responses are capped at 400 tokens — after the first backfill run, daily cost is typically pennies (or zero with a local model).
 
 ## Gmail API setup from scratch
 
@@ -102,13 +114,13 @@ One-time, ~10 minutes:
 
    | Secret name | Value |
    |---|---|
-   | `ANTHROPIC_API_KEY` | your Anthropic key |
+   | `ANTHROPIC_API_KEY` (or `OPENAI_API_KEY` / `GEMINI_API_KEY` / …) | the API key for the provider in `JOBSCOUT_MODEL` |
    | `GMAIL_CLIENT_ID` | from the token script output |
    | `GMAIL_CLIENT_SECRET` | from the token script output |
    | `GMAIL_REFRESH_TOKEN` | from the token script output |
    | `DIGEST_RECIPIENT` | email address receiving the digest |
 
-   Optionally add repository **variables** (same page, Variables tab): `SCORE_THRESHOLD` (default 60) and `DASHBOARD_URL` (your Pages URL, once enabled).
+   Optionally add repository **variables** (same page, Variables tab): `JOBSCOUT_MODEL` (default `anthropic/claude-sonnet-4-6`), `SCORE_THRESHOLD` (default 60), and `DASHBOARD_URL` (your Pages URL, once enabled).
 3. **Allow the workflow to push**: Settings → Actions → General → Workflow permissions → **Read and write permissions** (needed to commit `state/state.json` and `docs/jobs.json`).
 4. **Schedule**: the workflow runs at `0 12 * * *` UTC = 8:00 AM EDT. GitHub cron has no DST awareness, so it drifts to 7:00 AM in winter; edit the cron in `.github/workflows/job-scout.yml` if that matters. Scheduled runs can start up to ~15 minutes late — normal GitHub behavior.
 5. **Manual run**: Actions tab → **Job Scout Daily Run** → **Run workflow**. The first run scores your entire backlog and may take a while and send a long digest; consider temporarily raising `SCORE_THRESHOLD` for it.
@@ -125,8 +137,9 @@ Set the `SCORE_THRESHOLD` env var (locally in `.env`, in Actions as a repository
 |---|---|
 | `invalid_grant` from Gmail | Refresh token expired or revoked. Most common cause: OAuth consent screen still in "Testing" (7-day token expiry) — publish the app, then re-run `scripts/get_gmail_refresh_token.py` and update the `GMAIL_REFRESH_TOKEN` secret. |
 | Digest lands in spam | Normal for self-sent automated mail at first; mark as Not Spam once, or add a Gmail filter on the subject prefix `Job Scout:`. |
-| `401 authentication_error` from Anthropic | `ANTHROPIC_API_KEY` secret missing/typo'd, or the key was revoked. |
-| `429` / overloaded from Anthropic | The scorer already backs off and retries 3× per posting; unscored postings retry next run automatically. If it persists on big backfills, raise `RETRY_BASE_DELAY` in `scoring.py` or split your company list temporarily. |
+| `AuthenticationError` from the LLM provider | The API key secret for your `JOBSCOUT_MODEL` provider is missing/typo'd, or the key was revoked. |
+| `BadRequestError` / "LLM Provider NOT provided" | `JOBSCOUT_MODEL` isn't a valid LiteLLM model string — use `<provider>/<model>` form (e.g. `openai/gpt-4o`) and check <https://docs.litellm.ai/docs/providers>. |
+| `429` / rate-limited or overloaded provider | The scorer already backs off and retries 3× per posting; unscored postings retry next run automatically. If it persists on big backfills, raise `RETRY_BASE_DELAY` in `scoring.py` or split your company list temporarily. |
 | A company fetch shows `HTTP 404` | Board token is wrong or the company left Greenhouse/Lever. Run `python scripts/validate_companies.py` and fix the entry. |
 | Malformed ATS response / weird locations | The fetchers skip malformed individual jobs and always keep the raw location string; extend `METRO_MAP` in `locations.py` for cities you care about that lack a metro label. |
 | Workflow fails at the commit step | Repo Settings → Actions → Workflow permissions must be **Read and write**. If it fails on `git push` after a rebase conflict, someone edited `state/state.json` manually — merge or delete the conflicting change. |
@@ -144,7 +157,7 @@ src/jobscout/
   models.py                  pydantic models
   fetchers.py                Greenhouse + Lever API clients
   locations.py               location parsing & metro normalization
-  scoring.py                 Claude scoring w/ validation + retry
+  scoring.py                 LLM scoring (LiteLLM) w/ validation + retry
   prompts.py                 the scoring rubric — your main tuning knob
   state.py                   JSON dedup/state store
   digest.py                  HTML email builder

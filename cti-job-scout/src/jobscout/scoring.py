@@ -1,8 +1,12 @@
-"""Score postings for relevance with the Claude API.
+"""Score postings for relevance with any LLM, via LiteLLM.
 
 Design decisions:
-- `anthropic` is imported lazily so unit tests for the parser don't need
-  the SDK or an API key.
+- `litellm` is imported lazily so unit tests for the parser don't need
+  the library or an API key.
+- LiteLLM speaks to 100+ providers through one OpenAI-style interface, so
+  the scoring model is just a string: set JOBSCOUT_MODEL to e.g.
+  "anthropic/claude-sonnet-4-6", "openai/gpt-4o", "gemini/gemini-2.0-flash",
+  or "ollama/llama3" and export the matching provider API key.
 - parse_score_response() is a pure function, tested in isolation. It
   tolerates the two common failure modes of "JSON-only" prompts: markdown
   fences and stray prose around the object.
@@ -28,8 +32,8 @@ from .prompts import SCORING_SYSTEM_PROMPT
 
 log = logging.getLogger(__name__)
 
-# Update this string when Anthropic ships newer models; see README.
-DEFAULT_MODEL = os.environ.get("JOBSCOUT_MODEL", "claude-sonnet-4-6")
+# Any LiteLLM model string works here: "<provider>/<model>". See README.
+DEFAULT_MODEL = os.environ.get("JOBSCOUT_MODEL", "anthropic/claude-sonnet-4-6")
 MAX_ATTEMPTS = 3
 RETRY_BASE_DELAY = 2.0  # seconds; doubles per attempt for 429/5xx backoff
 
@@ -68,27 +72,39 @@ def _build_user_message(posting: JobPosting) -> str:
     )
 
 
-def score_posting(posting: JobPosting, client=None, model: str = DEFAULT_MODEL) -> Score:
+def score_posting(
+    posting: JobPosting, model: str = DEFAULT_MODEL, completion_fn=None
+) -> Score:
     """Score one posting, retrying on malformed output and transient API errors."""
-    import anthropic  # lazy: keeps parser tests dependency-free
+    import litellm  # lazy: keeps parser tests dependency-free
 
-    if client is None:
-        client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY from env
+    if completion_fn is None:
+        completion_fn = litellm.completion  # provider keys read from env
 
-    messages = [{"role": "user", "content": _build_user_message(posting)}]
+    # Transient failures worth backing off on; anything else (auth, bad
+    # model string, bad request) fails fast as a ScoringError.
+    retryable = (
+        litellm.exceptions.RateLimitError,
+        litellm.exceptions.InternalServerError,
+        litellm.exceptions.ServiceUnavailableError,
+        litellm.exceptions.APIConnectionError,
+        litellm.exceptions.Timeout,
+    )
+
+    messages = [
+        {"role": "system", "content": SCORING_SYSTEM_PROMPT},
+        {"role": "user", "content": _build_user_message(posting)},
+    ]
     last_error: Exception | None = None
 
     for attempt in range(1, MAX_ATTEMPTS + 1):
         try:
-            response = client.messages.create(
+            response = completion_fn(
                 model=model,
                 max_tokens=400,
-                system=SCORING_SYSTEM_PROMPT,
                 messages=messages,
             )
-            text = "".join(
-                block.text for block in response.content if block.type == "text"
-            )
+            text = response.choices[0].message.content or ""
             return parse_score_response(text)
         except (json.JSONDecodeError, ValueError, ValidationError) as exc:
             # Malformed output: append a corrective turn and retry.
@@ -108,18 +124,18 @@ def score_posting(posting: JobPosting, client=None, model: str = DEFAULT_MODEL) 
                     ),
                 },
             ]
-        except anthropic.APIStatusError as exc:
-            # Rate limits / server errors: exponential backoff then retry.
+        except retryable as exc:
+            # Rate limits / server errors / timeouts: exponential backoff.
             last_error = exc
-            if exc.status_code in (429, 500, 502, 503, 529):
-                delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
-                log.warning(
-                    "API %s for %s; sleeping %.1fs (attempt %d/%d)",
-                    exc.status_code, posting.uid, delay, attempt, MAX_ATTEMPTS,
-                )
-                time.sleep(delay)
-            else:
-                raise ScoringError(f"Non-retryable API error: {exc}") from exc
+            delay = RETRY_BASE_DELAY * (2 ** (attempt - 1))
+            log.warning(
+                "Transient API error for %s; sleeping %.1fs (attempt %d/%d): %s",
+                posting.uid, delay, attempt, MAX_ATTEMPTS, exc,
+            )
+            time.sleep(delay)
+        except Exception as exc:
+            # Auth failures, unknown model strings, malformed requests, etc.
+            raise ScoringError(f"Non-retryable API error: {exc}") from exc
 
     raise ScoringError(
         f"Failed to score {posting.uid} after {MAX_ATTEMPTS} attempts: {last_error}"

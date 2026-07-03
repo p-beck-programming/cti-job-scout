@@ -6,7 +6,7 @@ Lever:      https://api.lever.co/v0/postings/{token}?mode=json
 Design decisions:
 - One company failing (bad token, 5xx, timeout) is logged and skipped —
   a single broken entry in companies.yaml must never kill the daily run.
-- Descriptions are HTML-stripped and truncated before scoring; Claude only
+- Descriptions are HTML-stripped and truncated before scoring; the model only
   needs the text, and truncation caps per-posting token cost.
 """
 

@@ -1,4 +1,4 @@
-"""The Claude scoring prompt, isolated here so it's easy to tune.
+"""The LLM scoring prompt, isolated here so it's easy to tune.
 
 Edit ROLE_PROFILE to reshape what "relevant" means; the JSON contract in
 SCORING_SYSTEM_PROMPT must stay in sync with models.Score.

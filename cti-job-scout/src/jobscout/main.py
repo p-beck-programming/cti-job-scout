@@ -81,8 +81,8 @@ def run() -> int:
     # Non-zero exit if every scoring call failed — that means the API key or
     # model string is broken and the workflow should show red.
     if new_postings and failures == len(new_postings):
-        log.error("All %d scoring attempts failed; check ANTHROPIC_API_KEY/model",
-                  failures)
+        log.error("All %d scoring attempts failed; check your provider API key "
+                  "and JOBSCOUT_MODEL", failures)
         return 1
     return 0
 

@@ -81,7 +81,7 @@ def build_digest(jobs: list[ScoredJob], dashboard_url: str = "") -> tuple[str, s
   {_section("Remote-eligible", remote)}
   {_section("On-site / Hybrid", onsite)}
   <tr><td style="padding:14px 16px;font-size:12px;color:#8b949e;">
-    Scores are Claude's relevance estimates against your CTI / Detection Engineering / Threat Hunting profile.
+    Scores are the scoring model's relevance estimates against your CTI / Detection Engineering / Threat Hunting profile.
     Tune the rubric in <code>src/jobscout/prompts.py</code>.
   </td></tr>
 </table>

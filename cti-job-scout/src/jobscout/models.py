@@ -1,7 +1,7 @@
 """Shared data models for the job-scouting pipeline.
 
 Everything that crosses a module boundary is a pydantic model so that
-malformed data (from an ATS API or from Claude) fails loudly at the
+malformed data (from an ATS API or from the scoring model) fails loudly at the
 boundary instead of deep inside the digest builder.
 """
 
@@ -65,7 +65,7 @@ class JobPosting(BaseModel):
 
 
 class Score(BaseModel):
-    """Claude's structured verdict on one posting. Mirrors the JSON schema
+    """The scoring model's structured verdict on one posting. Mirrors the JSON schema
     demanded by the scoring prompt in prompts.py — keep the two in sync."""
 
     score: int = Field(ge=0, le=100)
