@@ -1,0 +1,102 @@
+# Companies tracked by the job scout.
+#
+# Tailored from the postings you shared (Anthropic, OpenAI, 10a Labs, TENEX,
+# Amazon ACTI, Bank of America threat hunting, EY/Deloitte, Computershare):
+# the pattern is AI-lab threat intelligence, MDR/detection vendors, threat
+# intel firms, and big-tech/fintech CTI teams. This list keeps companies in
+# those same buckets that hire CTI/DE/TH roles regularly AND run public
+# Greenhouse or Lever boards, which is what this agent can poll.
+#
+# NOT included, and why:
+#   - Amazon, Microsoft, Google, EY, Deloitte, Bank of America, Computershare
+#     use proprietary or Workday-style ATSes with no public Greenhouse/Lever
+#     board. Track those manually or add a fetcher later.
+#   - CrowdStrike, Palo Alto Networks, Proofpoint, Zscaler: Workday /
+#     SmartRecruiters, same limitation.
+#
+# IMPORTANT — review and validate this list before first run:
+# board tokens change when companies switch ATS vendors. Run:
+#     python scripts/validate_companies.py
+# It hits each board and tells you which entries are live. Fix or delete
+# anything it flags. Adding a company = find its careers page URL; if it
+# looks like boards.greenhouse.io/<token> or jobs.lever.co/<token>, that
+# final path segment is the token.
+
+companies:
+  # --- AI labs / AI safety (matches your Anthropic, OpenAI, 10a Labs interest)
+  - name: Anthropic
+    ats: greenhouse
+    token: anthropic
+  - name: OpenAI
+    ats: greenhouse
+    token: openai
+  - name: Scale AI
+    ats: greenhouse
+    token: scaleai
+
+  # --- MDR / detection / hunting vendors (matches TENEX-style roles)
+  - name: Red Canary
+    ats: greenhouse
+    token: redcanary
+  - name: Expel
+    ats: greenhouse
+    token: expel
+  - name: Huntress
+    ats: greenhouse
+    token: huntress
+  - name: Arctic Wolf
+    ats: greenhouse
+    token: arcticwolf
+
+  # --- Threat intelligence / threat research firms
+  - name: Dragos
+    ats: greenhouse
+    token: dragos
+  - name: GreyNoise
+    ats: greenhouse
+    token: greynoise
+  - name: Flashpoint
+    ats: greenhouse
+    token: flashpoint
+  - name: Recorded Future
+    ats: greenhouse
+    token: recordedfuture
+
+  # --- Security product companies with strong detection/research teams
+  - name: Elastic
+    ats: greenhouse
+    token: elastic
+  - name: SentinelOne
+    ats: greenhouse
+    token: sentinellabs
+  - name: Corelight
+    ats: greenhouse
+    token: corelight
+  - name: Abnormal AI
+    ats: greenhouse
+    token: abnormalsecurity
+  - name: Chainguard
+    ats: greenhouse
+    token: chainguard
+
+  # --- Big tech / infra with in-house CTI & detection (Amazon-ACTI-like)
+  - name: Cloudflare
+    ats: greenhouse
+    token: cloudflare
+  - name: Datadog
+    ats: greenhouse
+    token: datadog
+
+  # --- Fintech / large enterprises with mature intel teams (BofA-like)
+  - name: Coinbase
+    ats: greenhouse
+    token: coinbase
+  - name: Stripe
+    ats: greenhouse
+    token: stripe
+  - name: Plaid
+    ats: lever
+    token: plaid
+  - name: Palantir
+    ats: lever
+    token: palantir

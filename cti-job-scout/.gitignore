@@ -1,0 +1,9 @@
+__pycache__/
+*.pyc
+.venv/
+venv/
+.env
+scripts/credentials.json
+scripts/token.json
+state/*.corrupt.json
+.pytest_cache/

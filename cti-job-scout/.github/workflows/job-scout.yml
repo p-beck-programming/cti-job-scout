@@ -1,0 +1,60 @@
+name: Job Scout Daily Run
+
+on:
+  schedule:
+    # 8:00 AM Eastern. GitHub cron is UTC and has no DST awareness, so this
+    # is 12:00 UTC (8am EDT). During standard time it fires at 7am ET; change
+    # to "0 13 * * *" in winter if the hour matters to you.
+    - cron: "0 12 * * *"
+  workflow_dispatch: {}  # manual "Run workflow" button in the Actions tab
+
+# Prevent two runs (e.g. manual + scheduled) from racing on the state commit.
+concurrency:
+  group: job-scout
+  cancel-in-progress: false
+
+permissions:
+  contents: write  # required to commit state.json and docs/jobs.json back
+
+jobs:
+  scout:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
+          GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
+          GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
+          DIGEST_RECIPIENT: ${{ secrets.DIGEST_RECIPIENT }}
+          SCORE_THRESHOLD: ${{ vars.SCORE_THRESHOLD || '60' }}
+          DASHBOARD_URL: ${{ vars.DASHBOARD_URL || '' }}
+          PYTHONPATH: src
+        run: python -m jobscout.main
+
+      - name: Commit updated state and dashboard data
+        # Runs even if nothing changed; the diff check makes it a no-op then.
+        run: |
+          git config user.name "job-scout-bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add state/state.json docs/jobs.json
+          if git diff --cached --quiet; then
+            echo "No state changes to commit."
+          else
+            git commit -m "chore: update scout state $(date -u +%F)"
+            git pull --rebase origin ${GITHUB_REF_NAME}
+            git push
+          fi
