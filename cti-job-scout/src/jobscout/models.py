@@ -73,6 +73,20 @@ class Score(BaseModel):
     matched_keywords: list[str] = Field(default_factory=list)
 
 
+class Synopsis(BaseModel):
+    """The model's aggregated read of what employers want, regenerated weekly.
+    Mirrors the JSON schema demanded by SYNOPSIS_SYSTEM_PROMPT in prompts.py —
+    keep the two in sync."""
+
+    overview: str = Field(min_length=1)
+    top_skills: list[str] = Field(default_factory=list)
+    tools_and_technologies: list[str] = Field(default_factory=list)
+    certifications: list[str] = Field(default_factory=list)
+    experience: list[str] = Field(default_factory=list)
+    emerging_trends: list[str] = Field(default_factory=list)
+    soft_skills: list[str] = Field(default_factory=list)
+
+
 class ScoredJob(BaseModel):
     """A posting plus its score; the unit stored in state and rendered
     into both the email digest and the dashboard JSON."""

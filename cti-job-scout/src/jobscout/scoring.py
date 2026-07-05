@@ -41,16 +41,22 @@ RETRY_BASE_DELAY = 2.0  # seconds; doubles per attempt for 429/5xx backoff
 
 _JSON_OBJECT_RE = re.compile(r"\{.*\}", re.S)
 
+# Per-request description cap for scoring. Fetchers already truncate at 12k
+# chars; this tighter cap keeps each scoring request small so free-tier
+# providers (with strict request-size/rate quotas) don't reject the calls.
+MAX_SCORE_DESC_CHARS = 8_000
+
 
 class ScoringError(Exception):
     """Raised when a posting cannot be scored after all retries."""
 
 
-def parse_score_response(text: str) -> Score:
-    """Extract and validate the JSON score object from a model response.
+def extract_json_object(text: str) -> dict:
+    """Pull the first JSON object out of a model response.
 
-    Raises ValueError / ValidationError on malformed input so the caller
-    can decide whether to retry.
+    Tolerates markdown fences and stray prose around the object. Raises
+    ValueError / json.JSONDecodeError on malformed input so the caller can
+    decide whether to retry. Shared by scoring and synopsis parsing.
     """
     cleaned = text.strip()
     # Strip markdown fences if the model added them despite instructions.
@@ -60,8 +66,16 @@ def parse_score_response(text: str) -> Score:
         if not match:
             raise ValueError(f"No JSON object found in response: {text[:200]!r}")
         cleaned = match.group(0)
-    data = json.loads(cleaned)
-    return Score.model_validate(data)
+    return json.loads(cleaned)
+
+
+def parse_score_response(text: str) -> Score:
+    """Extract and validate the JSON score object from a model response.
+
+    Raises ValueError / ValidationError on malformed input so the caller
+    can decide whether to retry.
+    """
+    return Score.model_validate(extract_json_object(text))
 
 
 def _build_user_message(posting: JobPosting) -> str:
@@ -70,7 +84,8 @@ def _build_user_message(posting: JobPosting) -> str:
         f"Company: {posting.company}\n"
         f"Title: {posting.title}\n"
         f"Locations: {locs}\n\n"
-        f"Description:\n{posting.description or '(no description provided)'}"
+        f"Description:\n"
+        f"{(posting.description or '(no description provided)')[:MAX_SCORE_DESC_CHARS]}"
     )
 
 
