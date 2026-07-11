@@ -17,8 +17,9 @@ class Company(BaseModel):
     """One entry from config/companies.yaml."""
 
     name: str
-    ats: Literal["greenhouse", "lever"]
-    # Greenhouse board token or Lever company slug, e.g. "anthropic".
+    ats: Literal["greenhouse", "lever", "ashby"]
+    # Greenhouse board token, Lever company slug, or Ashby job-board name,
+    # e.g. "anthropic". Ashby names can contain dots ("flashpoint.io").
     token: str
 
 
@@ -51,7 +52,7 @@ class JobPosting(BaseModel):
     # Stable unique ID across runs: "{ats}:{token}:{ats_job_id}".
     uid: str
     company: str
-    ats: Literal["greenhouse", "lever"]
+    ats: Literal["greenhouse", "lever", "ashby"]
     title: str
     url: str
     description: str = ""

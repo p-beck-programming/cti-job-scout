@@ -2,6 +2,7 @@
 
 Greenhouse: https://boards-api.greenhouse.io/v1/boards/{token}/jobs?content=true
 Lever:      https://api.lever.co/v0/postings/{token}?mode=json
+Ashby:      https://api.ashbyhq.com/posting-api/job-board/{token}
 
 Design decisions:
 - One company failing (bad token, 5xx, timeout) is logged and skipped —
@@ -127,7 +128,65 @@ def fetch_lever(company: Company, session: requests.Session) -> list[JobPosting]
     return postings
 
 
-_FETCHERS = {"greenhouse": fetch_greenhouse, "lever": fetch_lever}
+def fetch_ashby(company: Company, session: requests.Session) -> list[JobPosting]:
+    url = f"https://api.ashbyhq.com/posting-api/job-board/{company.token}"
+    resp = session.get(url, timeout=REQUEST_TIMEOUT)
+    resp.raise_for_status()
+    payload = resp.json()
+
+    postings: list[JobPosting] = []
+    for job in payload.get("jobs", []):
+        try:
+            if job.get("isListed") is False:
+                continue
+            raw_locs = []
+            if job.get("location"):
+                raw_locs.append(job["location"])
+            for sec in job.get("secondaryLocations") or []:
+                # Entries are {"location": "...", "address": {...}} objects.
+                name = sec.get("location") if isinstance(sec, dict) else sec
+                if name:
+                    raw_locs.append(name)
+            locations = parse_locations(raw_locs)
+            # Ashby exposes remote-ness in dedicated fields; trust them.
+            if job.get("isRemote") is True or job.get("workplaceType") == "Remote":
+                if locations:
+                    for loc in locations:
+                        loc.is_remote = True
+                else:
+                    locations = [parse_location("Remote")]
+
+            posted_at = None
+            if job.get("publishedAt"):
+                try:
+                    posted_at = datetime.fromisoformat(job["publishedAt"])
+                except ValueError:
+                    pass  # unexpected timestamp precision; not worth losing the job
+
+            postings.append(
+                JobPosting(
+                    uid=f"ashby:{company.token}:{job['id']}",
+                    company=company.name,
+                    ats="ashby",
+                    title=job.get("title", "(untitled)"),
+                    url=job.get("jobUrl", ""),
+                    description=strip_html(
+                        job.get("descriptionPlain") or job.get("descriptionHtml", "")
+                    )[:MAX_DESCRIPTION_CHARS],
+                    locations=locations,
+                    posted_at=posted_at,
+                )
+            )
+        except Exception:
+            log.exception("Skipping malformed Ashby job for %s", company.name)
+    return postings
+
+
+_FETCHERS = {
+    "greenhouse": fetch_greenhouse,
+    "lever": fetch_lever,
+    "ashby": fetch_ashby,
+}
 
 
 def fetch_all(companies: list[Company]) -> list[JobPosting]:

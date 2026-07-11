@@ -56,6 +56,9 @@
   .inner li{font-size:13.5px;color:#2b3542;padding:4px 0 4px 16px;position:relative}
   .inner li::before{content:'▸';position:absolute;left:0;top:5px;font-size:11px;color:var(--accent)}
   .inner .companies{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:14px}
+  .inner .facts{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px;
+    padding-top:10px;border-top:1px dotted #e7ebef}
+  .inner .facts b{color:var(--ink)}
 
   .empty{background:var(--glass);border:1px dashed var(--glass-line);border-radius:10px;
     backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
@@ -120,6 +123,8 @@
       +sections
       +(e.companies&&e.companies.length
         ? '<p class="companies">from: '+e.companies.map(esc).join(' · ')+'</p>':'')
+      +'<div class="facts">built from <b>'+esc(e.job_count)+'</b> matched postings · generated <b>'
+      +esc(when)+'</b>'+(e.model?' · '+esc(e.model):'')+'</div>'
       +'</div></details>';
   }
 

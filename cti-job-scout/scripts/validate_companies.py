@@ -20,6 +20,7 @@ from jobscout.config import load_companies  # noqa: E402
 URLS = {
     "greenhouse": "https://boards-api.greenhouse.io/v1/boards/{token}/jobs",
     "lever": "https://api.lever.co/v0/postings/{token}?mode=json",
+    "ashby": "https://api.ashbyhq.com/posting-api/job-board/{token}",
 }
 
 
@@ -35,7 +36,8 @@ def main() -> int:
             resp = session.get(url, timeout=20)
             if resp.status_code == 200:
                 data = resp.json()
-                n = len(data.get("jobs", [])) if c.ats == "greenhouse" else len(data)
+                # Greenhouse and Ashby wrap in {"jobs": [...]}; Lever is a bare list.
+                n = len(data) if c.ats == "lever" else len(data.get("jobs", []))
                 print(f"  OK   {c.name:<20} {c.ats}:{c.token} — {n} open postings")
             else:
                 failures += 1

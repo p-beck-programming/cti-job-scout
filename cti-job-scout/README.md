@@ -1,10 +1,10 @@
 # CTI Job Scout
 
-A personal job-scouting agent for a SOC analyst moving into **Cyber Threat Intelligence, Detection Engineering, and Threat Hunting**. Once a day it pulls every open posting from a curated list of companies' public Greenhouse and Lever job boards, keyword-prefilters out the obviously irrelevant ones (no API cost), asks an LLM of your choice (any [LiteLLM](https://docs.litellm.ai/)-supported provider — Anthropic, OpenAI, Google, local Ollama, and 100+ more) to score each remaining *new* posting against your role profile, emails you a digest of everything above your threshold via the Gmail API, and refreshes a three-page web app: a filterable **match board**, a weekly **market synopsis** (what employers are asking for — skills, certs, experience — regenerated every Monday from your matches), and a browsable **monthly archive** of past synopses.
+A personal job-scouting agent for a SOC analyst moving into **Cyber Threat Intelligence, Detection Engineering, and Threat Hunting**. Once a day it pulls every open posting from a curated list of companies' public Greenhouse, Lever, and Ashby job boards, keyword-prefilters out the obviously irrelevant ones (no API cost), asks an LLM of your choice (any [LiteLLM](https://docs.litellm.ai/)-supported provider — Anthropic, OpenAI, Google, local Ollama, and 100+ more) to score each remaining *new* posting against your role profile, emails you a digest of everything above your threshold via the Gmail API, and refreshes a three-page web app: a filterable **match board**, a weekly **market synopsis** (what employers are asking for — skills, certs, experience — regenerated every Monday from your matches), and a browsable **monthly archive** of past synopses.
 
 ## Architecture in plain language
 
-1. **Fetch** — `config/companies.yaml` lists tracked companies; `fetchers.py` pulls their open postings from the public Greenhouse/Lever APIs (no auth needed). One broken company logs an error and is skipped; the run continues.
+1. **Fetch** — `config/companies.yaml` lists tracked companies; `fetchers.py` pulls their open postings from the public Greenhouse/Lever/Ashby APIs (no auth needed). One broken company logs an error and is skipped; the run continues.
 2. **Dedup** — `state/state.json` remembers every posting ID ever scored, so a posting is only scored and emailed once. The Actions workflow commits this file back to the repo after each run. (Chosen over an Actions cache/artifact deliberately: caches get evicted and artifacts expire, and either failure would re-email your entire backlog. A committed JSON file is durable and `git log state/state.json` doubles as an audit trail.)
 3. **Prefilter** — `prefilter.py` drops obviously irrelevant postings (sales, HR, unrelated engineering) with cheap keyword rules *before* any LLM call. This is what keeps API usage low and free-tier rate limits happy — only plausibly relevant postings cost tokens. Filtered postings are marked seen and logged.
 4. **Score** — `scoring.py` sends each surviving posting's title, locations, and description to your configured LLM with the rubric in `prompts.py`. All model calls go through **[LiteLLM](https://docs.litellm.ai/)**, a thin adapter that exposes a single `completion()` interface over 100+ providers, so switching between Anthropic, OpenAI, Gemini, a local Ollama model, etc. is a one-line env-var change (`JOBSCOUT_MODEL`) with no code edits. The model returns strict JSON (`score` 0–100, one-line `rationale`, `matched_keywords`), validated with pydantic; malformed output triggers a corrective retry, and a posting that can't be scored is retried automatically on the next run. Calls are spaced `JOBSCOUT_SCORE_DELAY` seconds apart (default 4) to stay under provider requests-per-minute quotas.
@@ -56,13 +56,13 @@ python -m http.server -d docs 8000   # then open http://localhost:8000
 
 ## Validate the company list first
 
-The pre-populated list in `config/companies.yaml` targets the same profile as the postings you've been saving — AI-lab threat intel (Anthropic, OpenAI), MDR/detection vendors (Red Canary, Expel, Huntress, Arctic Wolf), threat intel firms (Dragos, GreyNoise, Flashpoint, Recorded Future), security products with strong research teams (Elastic, SentinelOne, Corelight, Abnormal, Chainguard), and big-tech/fintech CTI (Cloudflare, Datadog, Coinbase, Stripe, Plaid, Palantir). **Board tokens change when companies switch ATS vendors, so verify before relying on it:**
+The pre-populated list in `config/companies.yaml` targets the same profile as the postings you've been saving — AI-lab threat intel (Anthropic, OpenAI), MDR/detection vendors (Zscaler/Red Canary, Expel, Huntress), threat intel firms (Dragos, GreyNoise, Flashpoint, Recorded Future), security products with strong research teams (Elastic, SentinelOne, Corelight, Abnormal, Chainguard), and big-tech/fintech CTI (Cloudflare, Datadog, Coinbase, Stripe, Plaid, Palantir). **Board tokens change when companies switch ATS vendors, so verify before relying on it:**
 
 ```bash
 python scripts/validate_companies.py
 ```
 
-Fix or delete anything it flags. Companies from your saved postings that use proprietary ATSes (Amazon, EY, Deloitte, Bank of America, Computershare, and vendors on Workday like CrowdStrike or Palo Alto Networks) can't be polled this way — track those manually or add a fetcher later.
+Fix or delete anything it flags. Companies from your saved postings that use proprietary ATSes (Amazon, EY, Deloitte, Bank of America, Computershare, and vendors on Workday like CrowdStrike, Palo Alto Networks, or Arctic Wolf) can't be polled this way — track those manually or add a fetcher later.
 
 ### Adding / removing companies
 
@@ -74,7 +74,7 @@ Open the company's careers page. If the URL looks like `boards.greenhouse.io/<to
     token: <token>
 ```
 
-If it looks like `jobs.lever.co/<token>`, use `ats: lever`. Delete a company by removing its block. Re-run the validator after any edit. (Removing a company doesn't purge its already-seen IDs from state — harmless, they just stop matching anything.)
+If it looks like `jobs.lever.co/<token>`, use `ats: lever`; if it looks like `jobs.ashbyhq.com/<token>`, use `ats: ashby` (Ashby board names can contain dots, e.g. `flashpoint.io`). Delete a company by removing its block. Re-run the validator after any edit. (Removing a company doesn't purge its already-seen IDs from state — harmless, they just stop matching anything.)
 
 ## LLM provider setup (LiteLLM)
 
@@ -171,7 +171,7 @@ Set the `SCORE_THRESHOLD` env var (locally in `.env`, in Actions as a repository
 | Requests rejected as too large | Scoring payloads are capped (~8k chars/description) and the synopsis call caps itself at 25 postings / 70k chars total. If a provider still rejects, lower `MAX_SCORE_DESC_CHARS` in `scoring.py` or `MAX_JOBS`/`PER_JOB_CHARS` in `synopsis.py`. |
 | A real job was skipped by the prefilter | Check the run log for `[skip] Company — Title` lines, then loosen/extend the keyword lists in `src/jobscout/prefilter.py`. Delete its uid from `state/state.json` to have it re-examined next run. |
 | Synopsis didn't update on Monday | It only regenerates when there are matches in the lookback window (7 days, widening to 30). Check the run log for "Regenerating synopsis" / "No matched jobs" lines, or force it: dispatch the workflow with the force-synopsis checkbox, or run locally with `FORCE_SYNOPSIS=1`. |
-| A company fetch shows `HTTP 404` | Board token is wrong or the company left Greenhouse/Lever. Run `python scripts/validate_companies.py` and fix the entry. |
+| A company fetch shows `HTTP 404` | Board token is wrong or the company changed ATS vendors (they do — OpenAI and Flashpoint moved to Ashby; Red Canary's board became Zscaler's after acquisition). Run `python scripts/validate_companies.py`, then check the company's careers page for the current `greenhouse`/`lever`/`ashby` URL and update `config/companies.yaml`. |
 | Malformed ATS response / weird locations | The fetchers skip malformed individual jobs and always keep the raw location string; extend `METRO_MAP` in `locations.py` for cities you care about that lack a metro label. |
 | Workflow fails at the commit step | Repo Settings → Actions → Workflow permissions must be **Read and write**. If it fails on `git push` after a rebase conflict, someone edited `state/state.json` manually — merge or delete the conflicting change. |
 | Same job emailed twice | The state commit didn't land on a previous run (see above), or the job was reposted under a new ATS ID — reposts are genuinely new IDs and will be re-scored by design. |
@@ -186,7 +186,7 @@ src/jobscout/
   main.py                    orchestrator (python -m jobscout.main)
   config.py                  yaml + env loading
   models.py                  pydantic models
-  fetchers.py                Greenhouse + Lever API clients
+  fetchers.py                Greenhouse + Lever + Ashby API clients
   locations.py               location parsing & metro normalization
   prefilter.py               keyword gate — irrelevant jobs never reach the LLM
   scoring.py                 LLM scoring (LiteLLM) w/ validation + retry
