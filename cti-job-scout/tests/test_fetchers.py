@@ -5,11 +5,18 @@ from unittest.mock import MagicMock
 import pytest
 import requests
 
-from jobscout.fetchers import fetch_all, fetch_greenhouse, fetch_lever, strip_html
+from jobscout.fetchers import (
+    fetch_all,
+    fetch_ashby,
+    fetch_greenhouse,
+    fetch_lever,
+    strip_html,
+)
 from jobscout.models import Company
 
 GH_COMPANY = Company(name="ExampleSec", ats="greenhouse", token="examplesec")
 LEVER_COMPANY = Company(name="ExampleIntel", ats="lever", token="exampleintel")
+ASHBY_COMPANY = Company(name="ExampleLab", ats="ashby", token="examplelab.io")
 
 
 def _session_returning(json_payload, status=200):
@@ -101,6 +108,72 @@ class TestLever:
         jobs = fetch_lever(LEVER_COMPANY, _session_returning(self.PAYLOAD))
         raws = [l.raw for l in jobs[0].locations]
         assert raws.count("New York") == 1
+
+
+class TestAshby:
+    PAYLOAD = {
+        "jobs": [
+            {
+                "id": "f1e2d3",
+                "title": "Threat Intelligence Engineer",
+                "jobUrl": "https://jobs.ashbyhq.com/examplelab.io/f1e2d3",
+                "descriptionPlain": "Track actors, write YARA, hunt in EDR.",
+                "location": "San Francisco",
+                "secondaryLocations": [{"location": "New York"}],
+                "isRemote": True,
+                "isListed": True,
+                "publishedAt": "2026-06-30T12:00:15.322+00:00",
+            },
+            {
+                "id": "unlisted-1",
+                "title": "Hidden Role",
+                "jobUrl": "https://jobs.ashbyhq.com/examplelab.io/unlisted-1",
+                "descriptionHtml": "<p>internal</p>",
+                "location": "Remote",
+                "isListed": False,
+            },
+        ]
+    }
+
+    def test_parses_jobs(self):
+        jobs = fetch_ashby(ASHBY_COMPANY, _session_returning(self.PAYLOAD))
+        assert len(jobs) == 1  # unlisted job skipped
+        job = jobs[0]
+        assert job.uid == "ashby:examplelab.io:f1e2d3"
+        assert job.ats == "ashby"
+        assert job.description == "Track actors, write YARA, hunt in EDR."
+        # isRemote=True flags every location as remote-eligible.
+        assert all(l.is_remote for l in job.locations)
+        assert {l.raw for l in job.locations} == {"San Francisco", "New York"}
+        assert job.posted_at is not None
+
+    def test_html_description_fallback(self):
+        payload = {"jobs": [{
+            "id": "h1",
+            "title": "Detection Engineer",
+            "jobUrl": "https://jobs.ashbyhq.com/examplelab.io/h1",
+            "descriptionHtml": "<p>Write <b>Sigma</b> rules.</p>",
+            "location": "Austin",
+        }]}
+        jobs = fetch_ashby(ASHBY_COMPANY, _session_returning(payload))
+        assert jobs[0].description == "Write Sigma rules."
+
+    def test_remote_with_no_locations(self):
+        payload = {"jobs": [{
+            "id": "r1",
+            "title": "Threat Hunter",
+            "jobUrl": "https://jobs.ashbyhq.com/examplelab.io/r1",
+            "descriptionPlain": "Hunt.",
+            "workplaceType": "Remote",
+        }]}
+        jobs = fetch_ashby(ASHBY_COMPANY, _session_returning(payload))
+        assert jobs[0].locations and jobs[0].locations[0].is_remote
+
+    def test_malformed_job_is_skipped_not_fatal(self):
+        payload = {"jobs": [{"title": "no id"}, self.PAYLOAD["jobs"][0]]}
+        jobs = fetch_ashby(ASHBY_COMPANY, _session_returning(payload))
+        assert len(jobs) == 1
+        assert jobs[0].title == "Threat Intelligence Engineer"
 
 
 class TestFetchAll:

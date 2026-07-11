@@ -8,7 +8,12 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <style>
   :root{
-    --ink:#141a24; --panel:#ffffff; --paper:#eef1f4; --line:#d4dae1;
+    /* dark chrome (page) */
+    --bg0:#0a1220; --bg1:#0e1930; --chrome-ink:#e8eef5; --chrome-muted:#93a4bb;
+    --glass:rgba(13,22,38,.72); --glass-line:rgba(122,215,247,.16);
+    --neon:#7ad7f7;
+    /* light content cards (unchanged reading surface) */
+    --ink:#141a24; --panel:#ffffff; --line:#d4dae1;
     --muted:#5b6673; --accent:#245fa0; --accent-ink:#183f6b;
     --hi:#1a7f37; --mid:#9a6700; --lo:#8a94a0;
     --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
@@ -16,35 +21,50 @@
     --disp:'Space Grotesk',var(--sans);
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
-  a{color:var(--accent)}
+  body{margin:0;color:var(--chrome-ink);font-family:var(--sans);font-size:15px;line-height:1.5;
+    background:radial-gradient(1100px 600px at 15% -10%, #13294a 0%, transparent 55%),
+               radial-gradient(900px 500px at 110% 30%, #0f2b3d 0%, transparent 60%),
+               var(--bg0)}
+  a{color:var(--neon)}
   .wrap{max-width:1060px;margin:0 auto;padding:28px 20px 80px}
 
-  header h1{font-family:var(--disp);font-weight:700;font-size:30px;margin:0;letter-spacing:-.01em}
-  header .sub{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin-top:4px}
-  header .sub b{color:var(--ink)}
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px}
+  header h1{font-family:var(--disp);font-weight:700;font-size:30px;margin:0;letter-spacing:-.01em;
+    color:#fff;text-shadow:0 0 24px rgba(122,215,247,.25)}
+  header .sub{font-family:var(--mono);font-size:12.5px;color:var(--chrome-muted);flex-basis:100%;margin-top:2px}
+  header .sub b{color:var(--chrome-ink)}
+  .nav{display:flex;gap:6px;margin-left:auto}
+  .nav a{font-family:var(--mono);font-size:12px;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--chrome-muted);text-decoration:none;padding:5px 12px;border:1px solid transparent;border-radius:999px}
+  .nav a:hover{color:var(--neon)}
+  .nav a.on{color:var(--neon);border-color:var(--glass-line);background:var(--glass)}
 
-  .filters{background:var(--panel);border:1px solid var(--line);border-radius:10px;
+  .filters{background:var(--glass);border:1px solid var(--glass-line);border-radius:10px;
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
     padding:16px;margin:22px 0 18px;display:grid;gap:14px;
     grid-template-columns:1.4fr 1fr 1fr auto auto;align-items:end}
   .filters label{display:block;font-family:var(--mono);font-size:11px;letter-spacing:.08em;
-    text-transform:uppercase;color:var(--muted);margin-bottom:5px}
+    text-transform:uppercase;color:var(--chrome-muted);margin-bottom:5px}
   .filters input[type=text],.filters select{width:100%;padding:8px 10px;font:inherit;font-size:14px;
-    border:1px solid var(--line);border-radius:6px;background:#fbfcfd;color:var(--ink)}
-  .filters input:focus,.filters select:focus,.filters button:focus{outline:2px solid var(--accent);outline-offset:1px}
+    border:1px solid rgba(255,255,255,.18);border-radius:6px;background:rgba(255,255,255,.07);color:var(--chrome-ink)}
+  .filters select option{background:var(--bg1);color:var(--chrome-ink)}
+  .filters input::placeholder{color:#6e8098}
+  .filters input:focus,.filters select:focus,.filters button:focus{outline:2px solid var(--neon);outline-offset:1px}
   .score-ctl{display:flex;align-items:center;gap:8px}
-  .score-ctl output{font-family:var(--mono);font-size:14px;font-weight:600;min-width:2.2em;text-align:right}
+  .score-ctl input[type=range]{accent-color:var(--neon)}
+  .score-ctl output{font-family:var(--mono);font-size:14px;font-weight:600;min-width:2.2em;text-align:right;color:var(--chrome-ink)}
   .remote-ctl{display:flex;align-items:center;gap:7px;padding-bottom:8px;white-space:nowrap}
-  .remote-ctl input{width:16px;height:16px;accent-color:var(--accent)}
-  .remote-ctl span{font-size:14px}
-  .filters .reset{grid-column:1/-1;justify-self:start;background:none;border:none;color:var(--accent);
+  .remote-ctl input{width:16px;height:16px;accent-color:var(--neon)}
+  .remote-ctl span{font-size:14px;color:var(--chrome-ink)}
+  .filters .reset{grid-column:1/-1;justify-self:start;background:none;border:none;color:var(--neon);
     font:inherit;font-size:13px;cursor:pointer;padding:0;text-decoration:underline;display:none}
   .filters .reset.on{display:inline}
 
-  .count{font-family:var(--mono);font-size:12.5px;color:var(--muted);margin:0 2px 10px}
+  .count{font-family:var(--mono);font-size:12.5px;color:var(--chrome-muted);margin:0 2px 10px}
 
   .job{background:var(--panel);border:1px solid var(--line);border-radius:10px;
-    margin-bottom:12px;display:grid;grid-template-columns:56px 1fr;overflow:hidden}
+    margin-bottom:12px;display:grid;grid-template-columns:56px 1fr;overflow:hidden;color:var(--ink);
+    box-shadow:0 8px 28px rgba(3,8,18,.45)}
   /* Signature element: the score spine — a vertical fill meter, read like a
      signal-strength gauge on a detection console. */
   .spine{position:relative;background:#f2f5f8;border-right:1px solid var(--line);
@@ -69,17 +89,20 @@
   .kw{font-family:var(--mono);font-size:11.5px;color:#7a5bb5;margin-top:7px}
   .date{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:7px}
 
-  .empty{background:var(--panel);border:1px dashed var(--line);border-radius:10px;
-    padding:36px 20px;text-align:center;color:var(--muted)}
-  .empty b{color:var(--ink)}
+  .empty{background:var(--glass);border:1px dashed var(--glass-line);border-radius:10px;
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    padding:36px 20px;text-align:center;color:var(--chrome-muted)}
+  .empty b{color:var(--chrome-ink)}
+  .empty code{color:var(--neon)}
 
   @media (max-width:720px){
     .filters{grid-template-columns:1fr 1fr}
     .filters .search{grid-column:1/-1}
+    .nav{margin-left:0}
   }
   @media (prefers-reduced-motion:no-preference){
-    .job{transition:border-color .15s}
-    .job:hover{border-color:#b3bfcc}
+    .job{transition:border-color .15s,transform .15s}
+    .job:hover{border-color:#9db3c9;transform:translateY(-1px)}
   }
 </style>
 </head>
@@ -87,6 +110,11 @@
 <div class="wrap">
   <header>
     <h1>CTI Job Scout</h1>
+    <nav class="nav" aria-label="Site">
+      <a href="index.html" class="on" aria-current="page">Matches</a>
+      <a href="synopsis.html">Synopsis</a>
+      <a href="archive.html">Archive</a>
+    </nav>
     <div class="sub" id="meta">loading feed…</div>
   </header>
 
@@ -120,6 +148,7 @@
   <main id="list"></main>
 </div>
 
+<script src="bg.js"></script>
 <script>
 (function(){
   const $=id=>document.getElementById(id);

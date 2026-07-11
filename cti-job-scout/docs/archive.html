@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CTI Job Scout — Synopsis Archive</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=IBM+Plex+Mono:wght@400;600&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg0:#0a1220; --bg1:#0e1930; --chrome-ink:#e8eef5; --chrome-muted:#93a4bb;
+    --glass:rgba(13,22,38,.72); --glass-line:rgba(122,215,247,.16);
+    --neon:#7ad7f7;
+    --ink:#141a24; --panel:#ffffff; --line:#d4dae1;
+    --muted:#5b6673; --accent:#245fa0; --accent-ink:#183f6b;
+    --mono:'IBM Plex Mono',ui-monospace,Menlo,Consolas,monospace;
+    --sans:'Inter',-apple-system,Segoe UI,Roboto,sans-serif;
+    --disp:'Space Grotesk',var(--sans);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;color:var(--chrome-ink);font-family:var(--sans);font-size:15px;line-height:1.55;
+    background:radial-gradient(1100px 600px at 15% -10%, #13294a 0%, transparent 55%),
+               radial-gradient(900px 500px at 110% 30%, #0f2b3d 0%, transparent 60%),
+               var(--bg0)}
+  a{color:var(--neon)}
+  .wrap{max-width:860px;margin:0 auto;padding:28px 20px 80px}
+
+  header{display:flex;flex-wrap:wrap;align-items:baseline;gap:8px 18px}
+  header h1{font-family:var(--disp);font-weight:700;font-size:30px;margin:0;letter-spacing:-.01em;
+    color:#fff;text-shadow:0 0 24px rgba(122,215,247,.25)}
+  header .sub{font-family:var(--mono);font-size:12.5px;color:var(--chrome-muted);flex-basis:100%;margin-top:2px}
+  .nav{display:flex;gap:6px;margin-left:auto}
+  .nav a{font-family:var(--mono);font-size:12px;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--chrome-muted);text-decoration:none;padding:5px 12px;border:1px solid transparent;border-radius:999px}
+  .nav a:hover{color:var(--neon)}
+  .nav a.on{color:var(--neon);border-color:var(--glass-line);background:var(--glass)}
+
+  .month{font-family:var(--mono);font-size:12px;letter-spacing:.12em;text-transform:uppercase;
+    color:var(--neon);margin:30px 2px 10px;display:flex;align-items:center;gap:12px}
+  .month::after{content:'';flex:1;height:1px;background:var(--glass-line)}
+
+  details.entry{background:var(--panel);border:1px solid var(--line);border-radius:10px;color:var(--ink);
+    margin-bottom:10px;overflow:hidden;box-shadow:0 8px 28px rgba(3,8,18,.45)}
+  details.entry summary{cursor:pointer;list-style:none;padding:14px 18px;display:flex;
+    flex-wrap:wrap;align-items:baseline;gap:6px 14px}
+  details.entry summary::-webkit-details-marker{display:none}
+  details.entry summary::before{content:'▸';font-size:13px;color:var(--accent);transition:transform .12s}
+  details.entry[open] summary::before{transform:rotate(90deg)}
+  .plabel{font-family:var(--disp);font-size:16.5px;font-weight:600;color:var(--accent-ink)}
+  .pfacts{font-family:var(--mono);font-size:11.5px;color:var(--muted)}
+  .inner{padding:0 18px 16px;border-top:1px solid var(--line)}
+  .inner .overview{font-size:14.5px;color:#2b3542;margin:14px 0 4px}
+  .inner h3{font-family:var(--mono);font-size:11px;letter-spacing:.09em;text-transform:uppercase;
+    color:var(--accent);margin:16px 0 6px}
+  .inner ul{margin:0;padding:0;list-style:none}
+  .inner li{font-size:13.5px;color:#2b3542;padding:4px 0 4px 16px;position:relative}
+  .inner li::before{content:'▸';position:absolute;left:0;top:5px;font-size:11px;color:var(--accent)}
+  .inner .companies{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:14px}
+  .inner .facts{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px;
+    padding-top:10px;border-top:1px dotted #e7ebef}
+  .inner .facts b{color:var(--ink)}
+
+  .empty{background:var(--glass);border:1px dashed var(--glass-line);border-radius:10px;
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    padding:36px 20px;text-align:center;color:var(--chrome-muted);margin-top:22px}
+  .empty b{color:var(--chrome-ink)}
+  .empty code{color:var(--neon)}
+
+  @media (max-width:720px){.nav{margin-left:0}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Synopsis Archive</h1>
+    <nav class="nav" aria-label="Site">
+      <a href="index.html">Matches</a>
+      <a href="synopsis.html">Synopsis</a>
+      <a href="archive.html" class="on" aria-current="page">Archive</a>
+    </nav>
+    <div class="sub" id="meta">loading archive…</div>
+  </header>
+
+  <main id="content"></main>
+</div>
+
+<script src="bg.js"></script>
+<script>
+(function(){
+  const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const meta=document.getElementById('meta'), content=document.getElementById('content');
+
+  const SECTIONS=[
+    ['top_skills','Top skills'],
+    ['tools_and_technologies','Tools & technologies'],
+    ['certifications','Certifications'],
+    ['experience','Experience & seniority'],
+    ['emerging_trends','Emerging trends'],
+    ['soft_skills','Soft skills'],
+  ];
+  const MONTHS=['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
+  function monthKey(iso){return (iso||'').slice(0,7)}           // "2026-07"
+  function monthLabel(key){
+    const [y,m]=key.split('-');
+    return (MONTHS[(+m||1)-1]||'?')+' '+y;
+  }
+
+  function entryHtml(e,open){
+    const when=(e.generated_at||'').slice(0,10);
+    const sections=SECTIONS.map(([key,title])=>{
+      const items=e[key];
+      if(!items||!items.length) return '';
+      return '<h3>'+esc(title)+'</h3><ul>'+items.map(i=>'<li>'+esc(i)+'</li>').join('')+'</ul>';
+    }).join('');
+    return '<details class="entry"'+(open?' open':'')+'>'
+      +'<summary><span class="plabel">'+esc(e.period_label||when)+'</span>'
+      +'<span class="pfacts">'+esc(e.job_count)+' postings · '+esc(when)
+      +(e.source==='seed'?' · baseline':'')+'</span></summary>'
+      +'<div class="inner">'
+      +'<p class="overview">'+esc(e.overview||'')+'</p>'
+      +sections
+      +(e.companies&&e.companies.length
+        ? '<p class="companies">from: '+e.companies.map(esc).join(' · ')+'</p>':'')
+      +'<div class="facts">built from <b>'+esc(e.job_count)+'</b> matched postings · generated <b>'
+      +esc(when)+'</b>'+(e.model?' · '+esc(e.model):'')+'</div>'
+      +'</div></details>';
+  }
+
+  function render(history){
+    // Group by generation month, newest month (and entry) first.
+    const groups=new Map();
+    history.forEach(e=>{
+      const k=monthKey(e.generated_at);
+      if(!groups.has(k)) groups.set(k,[]);
+      groups.get(k).push(e);
+    });
+    const keys=[...groups.keys()].sort().reverse();
+    meta.innerHTML='every weekly synopsis, grouped by month · '+history.length
+      +' snapshot'+(history.length!==1?'s':'')+' on file';
+    content.innerHTML=keys.map((k,gi)=>
+      '<h2 class="month">'+esc(monthLabel(k))+'</h2>'
+      +groups.get(k)
+        .sort((a,b)=>(b.generated_at||'').localeCompare(a.generated_at||''))
+        .map((e,ei)=>entryHtml(e, gi===0&&ei===0))
+        .join('')
+    ).join('');
+  }
+
+  fetch('synopsis.json',{cache:'no-store'})
+    .then(r=>{if(!r.ok)throw new Error(r.status);return r.json()})
+    .then(data=>{
+      const history=data.history||[];
+      if(!history.length) throw new Error('empty history');
+      render(history);
+    })
+    .catch(()=>{
+      meta.textContent='could not load synopsis.json';
+      content.innerHTML='<div class="empty"><b>No synopsis history found.</b><br>'
+        +'synopsis.json ships with the repo and grows every Monday. Serve this folder '
+        +'over HTTP — e.g. <code>python -m http.server -d docs</code> — or publish via '
+        +'GitHub Pages; file:// blocks the data fetch.</div>';
+    });
+})();
+</script>
+</body>
+</html>

@@ -17,13 +17,21 @@ class Settings(BaseModel):
     score_threshold: int = Field(default=60, ge=0, le=100)
     dashboard_url: str = ""
     dry_run: bool = False  # True: run everything except sending the email
+    # Seconds to sleep between scoring calls. Free-tier providers enforce
+    # low requests-per-minute quotas; 4s keeps a big backfill under 15 RPM.
+    score_delay: float = Field(default=4.0, ge=0)
+    # True: regenerate the weekly synopsis this run even if it isn't Monday.
+    force_synopsis: bool = False
 
     @classmethod
     def from_env(cls) -> "Settings":
+        truthy = ("1", "true", "yes")
         return cls(
             score_threshold=int(os.environ.get("SCORE_THRESHOLD", "60")),
             dashboard_url=os.environ.get("DASHBOARD_URL", ""),
-            dry_run=os.environ.get("DRY_RUN", "").lower() in ("1", "true", "yes"),
+            dry_run=os.environ.get("DRY_RUN", "").lower() in truthy,
+            score_delay=float(os.environ.get("JOBSCOUT_SCORE_DELAY", "4")),
+            force_synopsis=os.environ.get("FORCE_SYNOPSIS", "").lower() in truthy,
         )
 
 

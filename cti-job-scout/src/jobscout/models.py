@@ -17,8 +17,9 @@ class Company(BaseModel):
     """One entry from config/companies.yaml."""
 
     name: str
-    ats: Literal["greenhouse", "lever"]
-    # Greenhouse board token or Lever company slug, e.g. "anthropic".
+    ats: Literal["greenhouse", "lever", "ashby"]
+    # Greenhouse board token, Lever company slug, or Ashby job-board name,
+    # e.g. "anthropic". Ashby names can contain dots ("flashpoint.io").
     token: str
 
 
@@ -51,7 +52,7 @@ class JobPosting(BaseModel):
     # Stable unique ID across runs: "{ats}:{token}:{ats_job_id}".
     uid: str
     company: str
-    ats: Literal["greenhouse", "lever"]
+    ats: Literal["greenhouse", "lever", "ashby"]
     title: str
     url: str
     description: str = ""
@@ -71,6 +72,20 @@ class Score(BaseModel):
     score: int = Field(ge=0, le=100)
     rationale: str = Field(min_length=1, max_length=500)
     matched_keywords: list[str] = Field(default_factory=list)
+
+
+class Synopsis(BaseModel):
+    """The model's aggregated read of what employers want, regenerated weekly.
+    Mirrors the JSON schema demanded by SYNOPSIS_SYSTEM_PROMPT in prompts.py —
+    keep the two in sync."""
+
+    overview: str = Field(min_length=1)
+    top_skills: list[str] = Field(default_factory=list)
+    tools_and_technologies: list[str] = Field(default_factory=list)
+    certifications: list[str] = Field(default_factory=list)
+    experience: list[str] = Field(default_factory=list)
+    emerging_trends: list[str] = Field(default_factory=list)
+    soft_skills: list[str] = Field(default_factory=list)
 
 
 class ScoredJob(BaseModel):

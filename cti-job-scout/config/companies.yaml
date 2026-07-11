@@ -9,18 +9,20 @@
 #
 # NOT included, and why:
 #   - Amazon, Microsoft, Google, EY, Deloitte, Bank of America, Computershare
-#     use proprietary or Workday-style ATSes with no public Greenhouse/Lever
-#     board. Track those manually or add a fetcher later.
-#   - CrowdStrike, Palo Alto Networks, Proofpoint, Zscaler: Workday /
-#     SmartRecruiters, same limitation.
+#     use proprietary or Workday-style ATSes with no public Greenhouse/Lever/
+#     Ashby board. Track those manually or add a fetcher later.
+#   - CrowdStrike, Palo Alto Networks, Proofpoint: Workday / SmartRecruiters,
+#     same limitation.
+#   - Arctic Wolf: moved to Workday (careers page embeds myworkdayjobs.com),
+#     same limitation. Removed 2026-07.
 #
 # IMPORTANT — review and validate this list before first run:
 # board tokens change when companies switch ATS vendors. Run:
 #     python scripts/validate_companies.py
 # It hits each board and tells you which entries are live. Fix or delete
 # anything it flags. Adding a company = find its careers page URL; if it
-# looks like boards.greenhouse.io/<token> or jobs.lever.co/<token>, that
-# final path segment is the token.
+# looks like boards.greenhouse.io/<token>, jobs.lever.co/<token>, or
+# jobs.ashbyhq.com/<token>, that final path segment is the token.
 
 companies:
   # --- AI labs / AI safety (matches your Anthropic, OpenAI, 10a Labs interest)
@@ -28,25 +30,25 @@ companies:
     ats: greenhouse
     token: anthropic
   - name: OpenAI
-    ats: greenhouse
+    ats: ashby         # moved off Greenhouse; Ashby board verified 2026-07
     token: openai
   - name: Scale AI
     ats: greenhouse
     token: scaleai
 
   # --- MDR / detection / hunting vendors (matches TENEX-style roles)
-  - name: Red Canary
+  # Red Canary was acquired by Zscaler; its roles now post on Zscaler's
+  # Greenhouse board (their old zscalerredcanary board is dead). The
+  # prefilter strips Zscaler's non-security bulk before any LLM call.
+  - name: Zscaler (Red Canary)
     ats: greenhouse
-    token: redcanary
+    token: zscaler
   - name: Expel
     ats: greenhouse
     token: expel
   - name: Huntress
     ats: greenhouse
     token: huntress
-  - name: Arctic Wolf
-    ats: greenhouse
-    token: arcticwolf
 
   # --- Threat intelligence / threat research firms
   - name: Dragos
@@ -54,10 +56,10 @@ companies:
     token: dragos
   - name: GreyNoise
     ats: greenhouse
-    token: greynoise
+    token: greynoiseintelligence   # board renamed; verified 2026-07
   - name: Flashpoint
-    ats: greenhouse
-    token: flashpoint
+    ats: ashby         # moved off Greenhouse; note the dotted board name
+    token: flashpoint.io
   - name: Recorded Future
     ats: greenhouse
     token: recordedfuture

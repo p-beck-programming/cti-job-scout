@@ -5,8 +5,14 @@ on:
     # 8:00 AM Eastern. GitHub cron is UTC and has no DST awareness, so this
     # is 12:00 UTC (8am EDT). During standard time it fires at 7am ET; change
     # to "0 13 * * *" in winter if the hour matters to you.
+    # The Monday run also regenerates the weekly market synopsis.
     - cron: "0 12 * * *"
-  workflow_dispatch: {}  # manual "Run workflow" button in the Actions tab
+  workflow_dispatch:  # manual "Run workflow" button in the Actions tab
+    inputs:
+      force_synopsis:
+        description: "Also regenerate the weekly synopsis on this run"
+        type: boolean
+        default: false
 
 # Prevent two runs (e.g. manual + scheduled) from racing on the state commit.
 concurrency:
@@ -41,6 +47,10 @@ jobs:
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           JOBSCOUT_MODEL: ${{ vars.JOBSCOUT_MODEL || 'anthropic/claude-sonnet-4-6' }}
+          # Seconds between scoring calls; keeps free-tier RPM quotas happy.
+          JOBSCOUT_SCORE_DELAY: ${{ vars.JOBSCOUT_SCORE_DELAY || '4' }}
+          # Weekly synopsis normally regenerates on Mondays; this forces it.
+          FORCE_SYNOPSIS: ${{ inputs.force_synopsis && '1' || '' }}
           GMAIL_CLIENT_ID: ${{ secrets.GMAIL_CLIENT_ID }}
           GMAIL_CLIENT_SECRET: ${{ secrets.GMAIL_CLIENT_SECRET }}
           GMAIL_REFRESH_TOKEN: ${{ secrets.GMAIL_REFRESH_TOKEN }}
@@ -55,7 +65,7 @@ jobs:
         run: |
           git config user.name "job-scout-bot"
           git config user.email "actions@users.noreply.github.com"
-          git add state/state.json docs/jobs.json
+          git add state/state.json docs/jobs.json docs/synopsis.json
           if git diff --cached --quiet; then
             echo "No state changes to commit."
           else
